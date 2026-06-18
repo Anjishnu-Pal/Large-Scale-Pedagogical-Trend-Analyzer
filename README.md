@@ -1,2 +1,3 @@
-# Large-Scale-Pedagogical-Trend-Analyzer
-A Temporal Knowledge Graph based Forecasting Pipeline for Academic Literature
+The Large-Scale Pedagogical Trend Analyzer is an advanced, interdisciplinary project designed to track and predict the evolution of different fields in research. Every year, thousands of academic papers are published, making it impossible for educators and researchers to manually track which technologies are emerging and which are becoming obsolete.
+This project solves that problem by building an automated, event-driven data pipeline. It ingests thousands of unstructured research abstracts, extracts the core concepts using Natural Language Processing (NLP), and maps them into a Temporal Knowledge Graph. By applying network science and Graph Representation Learning the system identifies distinct academic sub-fields, tracks their historical growth and time-series forecasting mathematically predicts where the research frontier will move next.
+
