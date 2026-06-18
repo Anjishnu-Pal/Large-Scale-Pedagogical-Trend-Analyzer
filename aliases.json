@@ -1,0 +1,16 @@
+{
+    "cnn": "convolutional_neural_network",
+    "cnns": "convolutional_neural_network",
+    "convnet": "convolutional_neural_network",
+    "c.n.n.": "convolutional_neural_network",
+    "llm": "large_language_model",
+    "llms": "large_language_model",
+    "gnn": "graph_neural_network",
+    "gnns": "graph_neural_network",
+    "vit": "vision_transformer",
+    "vits": "vision_transformer",
+    "lora": "low_rank_adaptation",
+    "transformers": "transformer",
+    "transformer": "transformer",
+    "rlhf": "reinforcement_learning_human_feedback"
+}

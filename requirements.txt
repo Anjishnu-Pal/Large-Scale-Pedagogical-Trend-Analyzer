@@ -1,0 +1,11 @@
+kaggle
+requests
+beautifulsoup4
+pandas
+spacy
+transformers
+torch
+networkx
+scikit-learn
+streamlit
+plotly
