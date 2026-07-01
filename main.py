@@ -6,7 +6,7 @@ from step1_ingestion import DataIngestor, BaseDataSource, ManualPaper_Source, Ar
 from step2_extraction import SemanticExtractor
 from step3_knowledge_graph import KnowledgeGraphBuilder
 from step4_community_detection import CommunityDetector
-from step5_forecasting import TrendForecaster
+from step5_forecasting import TrendAnalyzer, TrendForecaster
 
 def main():
     print("=== Large-Scale Pedagogical Trend Analyzer Pipeline ===")
@@ -25,11 +25,11 @@ def main():
     data1 = DataIngestor(source=source1).ingest_and_normalize()
     
     # 2. Fetch Live ArXiv Papers (Latest AI research)
-    source2 = ArXivAPI_Source(query="cat:cs.AI", max_results=5)
+    source2 = ArXivAPI_Source(query="cat:q-bio.GN", max_results=200)
     data2 = DataIngestor(source=source2).ingest_and_normalize()
     
     # 3. Fetch Offline Kaggle Data (Historical snapshot)
-    source3 = KaggleLocal_Source(file_path="raw_data/arxiv-metadata-oai-snapshot.json", max_records=50)
+    source3 = KaggleLocal_Source(file_path="raw_data/arxiv-metadata-oai-snapshot.json", max_records=2)
     data3 = DataIngestor(source=source3).ingest_and_normalize()
     
     # Combine all data into one master list
@@ -60,16 +60,22 @@ def main():
         global_graph.add_edges_from(g.edges(data=True))
         
     detector = CommunityDetector()
-    node_to_community, communities = detector.detect_communities(global_graph)
+    node_to_community, communities, community_labels = detector.detect_communities(global_graph)
     print(f"         Detected {len(communities)} distinct AI sub-fields.")
     
     # ---------------------------------------------------------
     # Step 5: Forecasting
     # ---------------------------------------------------------
     print("\n[Step 5] Historical Aggregation and Predictive Forecasting...")
+    analyzer = TrendAnalyzer()
     forecaster = TrendForecaster()
-    historical_df = forecaster.calculate_historical_share(temporal_graphs, node_to_community)
-    final_trends_df = forecaster.forecast_trends(historical_df, future_years=3)
+    historical_df = analyzer.calculate_historical_share(
+        temporal_graphs,
+        node_to_community,
+        community_labels,
+        processed_data=processed_data,
+    )
+    final_trends_df = forecaster.forecast_trends(historical_df, future_years=3, method="arima")
     
     final_trends_df.to_csv('trends_output.csv', index=False)
     print("         Data exported to 'trends_output.csv'.")

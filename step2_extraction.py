@@ -2,6 +2,7 @@ import spacy
 import json
 import requests
 import urllib.parse
+from itertools import combinations
 from dataclasses import dataclass
 
 # =========================================================
@@ -92,6 +93,107 @@ class SemanticExtractor:
             
         self.normalizer = EntityNormalizer()
         self.citation_fetcher = CitationContextFetcher()
+        self.technical_hints = {
+            "model", "network", "neural", "transformer", "attention", "learning",
+            "embedding", "retrieval", "classifier", "diffusion", "graph", "language",
+            "vision", "adaptation", "optimization", "architecture", "inference",
+            "representation", "reinforcement", "generation", "knowledge", "foundation",
+            "semantic", "adapter", "llm", "gnn", "cnn", "vit", "rlhf", "rag",
+            "encoder", "decoder", "prompt", "tuning", "pretraining", "fine", "self",
+            "supervised", "multimodal", "policy", "agent", "bayesian", "federated",
+            "transfer", "contrastive", "distillation", "zero", "few", "shot",
+        }
+        self.generic_words = {
+            "we", "that", "them", "they", "this", "these", "those", "which", "what",
+            "where", "when", "why", "how", "benefits", "properties", "results", "methods",
+            "agreement", "advances", "energy", "place", "calculation", "approach", "paper",
+            "signals", "sources", "rules", "tools", "us", "n", "li", "it", "people", "things", "problem",
+            "model", "models", "work", "study", "analysis", "system", "systems", "method", "methods",
+            "results", "result", "effect", "effects", "feature", "features",
+        }
+
+    def _normalize_concept(self, text: str) -> str:
+        if not text:
+            return ""
+        normalized = text.lower().replace("_", " ").strip()
+        return " ".join(normalized.split())
+
+    def _is_research_concept(self, text: str) -> bool:
+        normalized = self._normalize_concept(text)
+        if not normalized:
+            return False
+
+        if normalized in self.normalizer.aliases:
+            return True
+
+        if normalized in self.normalizer.aliases.values():
+            return True
+
+        tokens = normalized.split()
+        if any(token in self.generic_words for token in tokens):
+            return False
+
+        if len(tokens) >= 2 and any(token in self.technical_hints for token in tokens):
+            return True
+
+        if len(tokens) == 1 and (text.isupper() and 2 <= len(text) <= 6):
+            return True
+
+        if "language model" in normalized or "neural network" in normalized or "graph neural" in normalized:
+            return True
+
+        if any(token in self.technical_hints for token in tokens):
+            return True
+
+        return False
+
+    def _extract_research_concepts(self, text: str) -> list:
+        if not self.nlp or not text:
+            return []
+
+        doc = self.nlp(text)
+        concepts = []
+        seen = set()
+
+        for chunk in doc.noun_chunks:
+            chunk_text = chunk.text.strip(" -,:;()[]{}\"'\n\t")
+            normalized = self._normalize_concept(chunk_text)
+            if len(normalized) < 3:
+                continue
+            if not self._is_research_concept(normalized):
+                continue
+            canonical = self.normalizer.normalize(chunk_text).canonical_name
+            if canonical and canonical not in seen:
+                seen.add(canonical)
+                concepts.append(canonical)
+
+        return concepts
+
+    def _build_concept_cooccurrence_triplets(self, concepts: list) -> list:
+        if len(concepts) < 2:
+            return []
+
+        unique_concepts = []
+        seen = set()
+        for concept in concepts:
+            if concept not in seen:
+                seen.add(concept)
+                unique_concepts.append(concept)
+
+        limited_concepts = unique_concepts[:8]
+        relationships = []
+        for left, right in combinations(limited_concepts, 2):
+            subj_entity = self.normalizer.normalize(left)
+            obj_entity = self.normalizer.normalize(right)
+            relationships.append(
+                Relationship(
+                    subject=subj_entity,
+                    predicate="co_occurs_with",
+                    object_=obj_entity,
+                )
+            )
+
+        return relationships
 
     def _extract_from_text(self, text: str) -> list:
         """Internal private method to parse strings into Relationship objects."""
@@ -139,21 +241,23 @@ class SemanticExtractor:
             # 1. Extract from the abstract
             triplets = self._extract_from_text(abstract)
             
+            # 1b. Extract research concepts and create co-occurrence links so the
+            # graph contains topic-level nodes, not only verb fragments.
+            topic_concepts = self._extract_research_concepts(title)
+            topic_concepts.extend(self._extract_research_concepts(abstract))
+            
             # 2. Extract from Semantic Scholar Citation Contexts!
             # What do OTHER papers say about this one?
             citation_contexts = self.citation_fetcher.fetch_contexts(title)
             for ctx in citation_contexts:
                 ctx_triplets = self._extract_from_text(ctx)
                 triplets.extend(ctx_triplets)
+                topic_concepts.extend(self._extract_research_concepts(ctx))
+
+            triplets.extend(self._build_concept_cooccurrence_triplets(topic_concepts))
             
             # Save our list of Relationship objects
             item['triplet_objects'] = triplets
             results.append(item)
             
         return results
-
-if __name__ == "__main__":
-    extractor = SemanticExtractor()
-    sample = [{"title": "Sparsity-certifying Graph Decompositions", "abstract_normalized": "we describe a new algorithm, the $(k,\\ell)$-pebble game with colors, and use it obtain a characterization of the family of $(k,\\ell)$-sparse graphs and algorithmic solutions to a family of problems concerning tree decompositions of graphs. special instances of sparse graphs appear in rigidity theory and have received increased attention in recent years. in particular, our colored pebbles generalize and strengthen the previous results of lee and streinu and give a new proof of the tutte-nash-williams characterization of arboricity. we also present a new decomposition that certifies sparsity based on the $(k,\\ell)$-pebble game with colors. our work also exposes connections between pebble game algorithms and previous sparse graph algorithms by gabow, gabow and westermann and hendrickson."}]
-    res = extractor.process_data(sample)
-    print(f"Extracted Triplets: {res[0]['triplet_objects']}")

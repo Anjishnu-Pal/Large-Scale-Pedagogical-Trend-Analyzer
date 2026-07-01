@@ -7,5 +7,6 @@ transformers
 torch
 networkx
 scikit-learn
+statsmodels
 streamlit
 plotly
